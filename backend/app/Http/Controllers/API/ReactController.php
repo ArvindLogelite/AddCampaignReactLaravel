@@ -73,20 +73,16 @@ class ReactController extends Controller
         $image->delete();
         $category->delete();
 
-        // Iterate over image columns
         foreach (range(1, 6) as $index) {
             $columnName = "image{$index}";
             $imageUrl = $image->$columnName;
 
-            // Extract the filename from the URL
+
             $filename = basename($imageUrl);
+            $fullpath = public_path('images/' . $filename);
 
-            // Construct the full file path
-            $fullPath = public_path('images/' . $filename);
-
-            // Check if file exists and delete
-            if (file_exists($fullPath) && is_file($fullPath)) {
-                unlink($fullPath);
+            if (file_exists($fullpath) && is_file($fullpath)) {
+                unlink($fullpath);
             }
         }
 
@@ -138,20 +134,12 @@ class ReactController extends Controller
 
     public function update(Request $request)
     {
-        // dd($request->category);
         $validator = Validator::make($request->all(), [
             'id' => 'required',
             'category' => 'required',
-            'campaign' => 'required',
-            'image1' => 'mimes:jpg,png,jpeg,gif,svg',
-            // 'image2' => 'image','mimes:jpg,png,jpeg,gif,svg',
-            // 'image3' => 'mimes:jpg,png,jpeg,gif,svg',
-            // 'image4' => 'mimes:jpg,png,jpeg,gif,svg',
-            // 'image5' => 'mimes:jpg,png,jpeg,gif,svg',
-            // 'image6' => 'mimes:jpg,png,jpeg,gif,svg',
+            'campaign' => 'required'
         ]);
 
-        // Check if validation fails
         if ($validator->fails()) {
             return response()->json([
                 'status' => 422,
@@ -173,18 +161,33 @@ class ReactController extends Controller
             $imageAll = ['image1', 'image2', 'image3', 'image4', 'image5', 'image6'];
             foreach ($imageAll as $index => $imageColumn) {
                 if ($request->hasFile($imageColumn)) {
+
+                    $oldImagePath = public_path() . '/images/' . basename($image->$imageColumn);
+                    unlink($oldImagePath);
+
+                    $validationRules = [
+                        $imageColumn => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+                    ];
+                    $validator = Validator::make($request->only($imageColumn), $validationRules);
+                    if ($validator->fails()) {
+                        return response()->json([
+                            'status' => 422,
+                            'message' => $validator->messages()
+                        ], 422);
+                    }
+
                     $img = $request->file($imageColumn);
                     $imgExt = $img->getClientOriginalExtension();
-                    $imageName = time() . '_' . $index . '.' . $imgExt; // Add $index to ensure unique names
+                    $imageName = time() . '_' . $index . '.' . $imgExt;
                     $img->move(public_path('images'), $imageName);
-                    $image->$imageColumn = asset('images/' . $imageName); // Assign to correct column
+                    $image->$imageColumn = asset('images/' . $imageName);
                 } else {
                     $image->$imageColumn = $request->$imageColumn;
                 }
             }
             $category->save();
             $image->save();
-            // Return success response
+
             return response()->json([
                 'status' => 200,
                 'message' => 'Data updated successfully'
