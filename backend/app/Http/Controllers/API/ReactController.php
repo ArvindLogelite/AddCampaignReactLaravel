@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers\API;
 
-use App\Http\Controllers\Controller;
-use App\Models\Category;
 use App\Models\Images;
+use App\Models\Category;
 use Illuminate\Http\Request;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Validator;
 
 
@@ -16,12 +17,19 @@ class ReactController extends Controller
         $validator = validator::make($request->all(), [
             'category' => 'required',
             'campaign' => 'required',
-            'image1' => 'image', 'mimes:jpg,png,jpeg,gif,svg',
-            'image2' => 'image', 'mimes:jpg,png,jpeg,gif,svg',
-            'image3' => 'image', 'mimes:jpg,png,jpeg,gif,svg',
-            'image4' => 'image', 'mimes:jpg,png,jpeg,gif,svg',
-            'image5' => 'image', 'mimes:jpg,png,jpeg,gif,svg',
-            'image6' => 'image', 'mimes:jpg,png,jpeg,gif,svg',
+            'image1' => 'image', 'mimes:jpg,png,jpeg',
+            'image2' => 'image', 'mimes:jpg,png,jpeg',
+            'image3' => 'image', 'mimes:jpg,png,jpeg',
+            'image4' => 'image', 'mimes:jpg,png,jpeg',
+            'image5' => 'image', 'mimes:jpg,png,jpeg',
+            'image6' => 'image', 'mimes:jpg,png,jpeg',
+        ],[
+            'image1.image' => 'Invalid! Image should be in jpg,png,jpeg',
+            'image2.image' => 'Invalid! Image should be in jpg,png,jpeg',
+            'image3.image' => 'Invalid! Image should be in jpg,png,jpeg',
+            'image4.image' => 'Invalid! Image should be in jpg,png,jpeg',
+            'image5.image' => 'Invalid! Image should be in jpg,png,jpeg',
+            'image6.image' => 'Invalid! Image should be in jpg,png,jpeg',
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -102,9 +110,12 @@ class ReactController extends Controller
         ]);
 
         $campaign = Category::findOrFail($id);
+        $image = Images::findOrFail($id);
 
         $campaign->status = $request->status;
+        $image->status = $request->status;
         $campaign->save();
+        $image->save();
 
         return response()->json([
             'message' => 'Campaign status updated successfully',
@@ -130,7 +141,6 @@ class ReactController extends Controller
             'image' => $images
         ], 200);
     }
-
 
     public function update(Request $request)
     {
@@ -162,11 +172,8 @@ class ReactController extends Controller
             foreach ($imageAll as $index => $imageColumn) {
                 if ($request->hasFile($imageColumn)) {
 
-                    $oldImagePath = public_path() . '/images/' . basename($image->$imageColumn);
-                    unlink($oldImagePath);
-
                     $validationRules = [
-                        $imageColumn => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+                        $imageColumn => 'image|mimes:jpeg,png|max:2048',
                     ];
                     $validator = Validator::make($request->only($imageColumn), $validationRules);
                     if ($validator->fails()) {
@@ -180,11 +187,23 @@ class ReactController extends Controller
                     $imgExt = $img->getClientOriginalExtension();
                     $imageName = time() . '_' . $index . '.' . $imgExt;
                     $img->move(public_path('images'), $imageName);
+
+                    // replace old image to new image
+                    if ($image->$imageColumn) {
+                        $basename = basename($image->$imageColumn);
+                        File::delete('images/' . $basename);
+                    }
+
                     $image->$imageColumn = asset('images/' . $imageName);
                 } else {
-                    $image->$imageColumn = $request->$imageColumn;
+                    if ($request->$imageColumn == null) {
+                        $img = basename($image->$imageColumn);
+                        File::delete('images/' . $img);
+                        $image->$imageColumn = $request->$imageColumn;
+                    }
                 }
             }
+
             $category->save();
             $image->save();
 
